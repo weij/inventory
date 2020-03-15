@@ -27,6 +27,8 @@ defmodule Inventory.ProductItemStateTest do
 
     {:ok, pid} = ProductItemState.start_link(item, state_timeout: 1_000)
 
+    assert ProductItemState.current_state(pid) == :ready
+
     assert ProductItemState.lock(pid, order) == {:ok, :locked}
     assert {:locked, %{current_order: _order, product_item: %ProductItem{id: 3}}} = ProductItemState.get_state(pid)
 

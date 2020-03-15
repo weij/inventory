@@ -16,6 +16,10 @@ defmodule Inventory.ProductItemState do
     :sys.get_state(pid)
   end
 
+  def current_state(pid) do
+    GenStateMachine.call(pid, :current_state)
+  end
+
   def lock(pid, order = %Order{}) do
     GenStateMachine.call(pid, {:lock, order})
   end
@@ -35,6 +39,10 @@ defmodule Inventory.ProductItemState do
        {:reply, from, {:ok, :locked}},
        {:state_timeout, state_timeout, :lock_timeout},
      ]}
+  end
+
+  def handle_event({:call, from}, :current_state, current_state, _) do
+    {:keep_state_and_data, [{:reply, from, current_state}]}
   end
 
   def handle_event(:state_timeout, :lock_timeout, :locked, data) do
