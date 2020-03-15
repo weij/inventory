@@ -22,4 +22,16 @@ defmodule Inventory.ProductItemStateTest do
     assert ProductItemState.lock(pid, order) == {:ok, :locked}
   end
 
+  test "lock down a product item for a time interval, when timeout resets state", context do
+    %{order: order, item: item} = context
+
+    {:ok, pid} = ProductItemState.start_link(item, state_timeout: 1_000)
+
+    assert ProductItemState.lock(pid, order) == {:ok, :locked}
+    assert {:locked, %{current_order: _order, product_item: %ProductItem{id: 3}}} = ProductItemState.get_state(pid)
+
+    Process.sleep(1_001)
+
+    assert {:ready, %{current_order: nil}} = ProductItemState.get_state(pid)
+  end
 end
