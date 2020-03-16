@@ -27,13 +27,43 @@ defmodule Inventory.ProductItemStateTest do
 
     {:ok, pid} = ProductItemState.start_link(item, state_timeout: 1_000)
 
-    assert ProductItemState.current_state(pid) == :ready
+    assert :ready = ProductItemState.current_state(pid)
 
-    assert ProductItemState.lock(pid, order) == {:ok, :locked}
-    assert {:locked, %{current_order: _order, product_item: %ProductItem{id: 3}}} = ProductItemState.get_state(pid)
+    assert {:ok, :locked} = ProductItemState.lock(pid, order)
+    assert {:locked, %{current_order: ^order, product_item: %ProductItem{id: 3}}} = ProductItemState.get_state(pid)
 
     Process.sleep(1_001)
 
     assert {:ready, %{current_order: nil}} = ProductItemState.get_state(pid)
+  end
+
+  test "product item can transition from locked to purchased, and can't be locked after purchase", context do
+    %{order: order, item: item} = context
+
+    {:ok, pid} = ProductItemState.start_link(item, state_timeout: 200)
+
+    assert :ready = ProductItemState.current_state(pid)
+    assert {:ok, :locked} = ProductItemState.lock(pid, order)
+    assert {:locked, %{current_order: ^order}} = ProductItemState.get_state(pid)
+
+    # locked state remains until the timeout is triggered
+    Process.sleep(100)
+    assert {:locked, %{current_order: ^order}} = ProductItemState.get_state(pid)
+
+    # state can transition from locked to purchased
+    payment_compeleted_order = %{order | state: :payment_complete}
+    assert {:ok, :purchased} = ProductItemState.purchase(pid, payment_compeleted_order)
+    assert {:purchased, %{current_order: ^payment_compeleted_order}} = ProductItemState.get_state(pid)
+
+    # product item state remains purchased after the timeout
+    Process.sleep(300)
+    assert {:purchased, %{current_order: _}} = ProductItemState.get_state(pid)
+
+    # same order can't lock down the same item again. The state stays in purchased.
+    assert {:error, {:no_transition, "from purchased to locked"}} = ProductItemState.lock(pid, order)
+
+    # the state stays purchased while the state of product item is set to sold.
+    Process.sleep(200)
+    assert {:purchased, %{product_item: %ProductItem{state: :sold}}} = ProductItemState.get_state(pid)
   end
 end

@@ -24,6 +24,10 @@ defmodule Inventory.ProductItemState do
     GenStateMachine.call(pid, {:lock, order})
   end
 
+  def purchase(pid, order = %Order{state: :payment_complete}) do
+    GenStateMachine.call(pid, {:purchase, order})
+  end
+
   # Server Callbacks
 
   @doc """
@@ -39,6 +43,33 @@ defmodule Inventory.ProductItemState do
        {:reply, from, {:ok, :locked}},
        {:state_timeout, state_timeout, :lock_timeout},
      ]}
+  end
+
+  @doc """
+  Can't transition from `purchased` to `locked`.
+  """
+  def handle_event({:call, from}, {:lock, _order}, :purchased, _data) do
+    reason = {:no_transition, "from purchased to locked"}
+
+    {:keep_state_and_data, [{:reply, from, {:error, reason}}]}
+  end
+
+  def handle_event({:call, from}, {:purchase, order}, :locked, data) do
+    %{current_order: current_order, product_item: item} = data
+
+    case order.customer_id == current_order.customer_id do
+      true ->
+        data = %{data | current_order: order, product_item: Map.put(item, :state, :sold)}
+
+        {:next_state, :purchased, data,
+        [
+          {:reply, from, {:ok, :purchased}}
+        ]}
+      _ ->
+        reason = "no transition"
+
+        {:keep_state_and_data, {:reply, from, {:error, reason}}}
+    end
   end
 
   def handle_event({:call, from}, :current_state, current_state, _) do

@@ -1,3 +1,5 @@
 defmodule Inventory.Order do
-  defstruct [:id, :customer_id]
+  defstruct id: nil,
+            customer_id: nil,
+            state: :pending_for_payment
 end
